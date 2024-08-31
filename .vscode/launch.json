@@ -1,0 +1,14 @@
+{
+	"configurations": [
+		{
+			"type": "cortex-debug",
+			"request": "launch",
+			"name": "Debug",
+			"servertype": "pyocd",
+			"cwd": "${workspaceFolder}",
+			"runToEntryPoint": "main",
+			"executable": "zig-out/bin/firmware.elf",
+			"device": "STM32U083RCTX"
+		}
+	]
+}

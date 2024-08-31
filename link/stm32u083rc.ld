@@ -9,12 +9,13 @@ MEMORY
 PROVIDE(__stack = ORIGIN(RAM) + LENGTH(RAM));
 
 SECTIONS {
+	. = 0;
 	.isr_vector : 
 	{
 		. = ALIGN(4);
 		KEEP(*(.isr_vector))
 		. = ALIGN(4);
-	}
+	} > FLASH
 
 	.text :
 	{

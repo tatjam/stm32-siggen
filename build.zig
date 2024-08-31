@@ -26,17 +26,16 @@ pub fn build(b: *std.Build) void {
     // For debugging it's better to use the elf file
     b.installArtifact(firmware_elf);
 
-    const firmware = b.addObjCopy(firmware_elf.*.getEmittedBin(), .{ .format = .bin });
-    firmware.step.dependOn(&firmware_elf.step);
-
     const upload_cmd = b.addSystemCommand(&[_][]const u8{
         "pyocd",
         "load",
         "--target",
-        "target/stm32u0",
+        "stm32u083rctx",
+        "--format",
+        "elf",
     });
-    upload_cmd.addFileArg(firmware.getOutput());
-    upload_cmd.step.dependOn(&firmware.step);
+    upload_cmd.addFileArg(firmware_elf.getEmittedBin());
+    upload_cmd.step.dependOn(&firmware_elf.step);
 
     const upload = b.step("upload", "Flash connected STM32 device using system pyocd");
     upload.dependOn(&upload_cmd.step);

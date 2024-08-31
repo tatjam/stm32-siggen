@@ -13,6 +13,91 @@ pub const devices = struct {
             pub const @"cpu.fpuPresent" = "false";
         };
 
+        fn default_handler() callconv(.C) noreturn {
+            while (true) {}
+        }
+
+		const IsrFunction = *const fn () callconv(.C) void;
+
+        pub const VectorTable = extern struct {
+            const Handler = IsrFunction;
+            const unhandled = default_handler;
+
+            initial_stack_pointer: *anyopaque,
+            Reset: Handler,
+            NMI: Handler = unhandled,
+            HardFault: Handler = unhandled,
+            reserved2: [7]u32 = undefined,
+            SVCall: Handler = unhandled,
+            reserved10: [2]u32 = undefined,
+            PendSV: Handler = unhandled,
+            SysTick: Handler = unhandled,
+            ///  Window watchdog interrupt
+            WWDG: Handler = unhandled,
+            ///  PVD/PVM1/PVM2/PVM3 interrupt (combined with EXTI lines 16 and 19 and 20 and 21)
+            PVD_PVM: Handler = unhandled,
+            ///  RTC and TAMP interrupts(combined EXTI lines 19 and 21)
+            RTC_TAMP: Handler = unhandled,
+            ///  FLASH global interrupt
+            FLASH: Handler = unhandled,
+            ///  RCC and CRS global interrupt
+            RCC_CRS: Handler = unhandled,
+            ///  EXTI lines 0 and 1 interrupt
+            EXTI0_1: Handler = unhandled,
+            ///  EXTI lines 2 and 3 interrupt
+            EXTI2_3: Handler = unhandled,
+            ///  EXTI lines 4 to 15 interrupt
+            EXTI4_15: Handler = unhandled,
+            ///  USB global interrupt (combined with EXTI line 33)
+            USB: Handler = unhandled,
+            ///  DMA1 channel 1 interrupt
+            DMA1_CHannel1: Handler = unhandled,
+            ///  DMA1 channel 2 and 3 interrupts
+            DMA1_Channel2_3: Handler = unhandled,
+            ///  DMA1 channel 4, 5, 6, 7, DMAMUX, DMA2 channel 1, 2, 3, 4, 5 interrupts
+            DMA1_Channel4_5_6_7: Handler = unhandled,
+            ///  ADC and COMP interrupts (ADC combined with EXTI lines 17 and 18)
+            ADC_COMP: Handler = unhandled,
+            ///  TIM1 break, update, trigger and commutation interrupts
+            TIM1_BRK_UP_TRG_COM: Handler = unhandled,
+            ///  TIM1 Capture Compare interrupt
+            TIM1_CC: Handler = unhandled,
+            ///  TIM2 global interrupt
+            TIM2: Handler = unhandled,
+            ///  TIM3 global interrupt
+            TIM3: Handler = unhandled,
+            ///  TIM6, LPTIM1 and DAC global interrupt (combined with EXTI line 29)
+            TIM6_DAC_LPTIM1: Handler = unhandled,
+            ///  TIM7 and LPTIM2 global interrupt (combined with EXTI line 30)
+            TIM7_LPTIM2: Handler = unhandled,
+            ///  TIM15 and LPTIM3 global interrupt (combined with EXTI line 29)
+            TIM15_LPTIM3: Handler = unhandled,
+            ///  TIM16 global interrupt
+            TIM16: Handler = unhandled,
+            ///  TSC global interrupt
+            TSC: Handler = unhandled,
+            ///  LCD global interrupt (combined with EXTI line 32)
+            LCD: Handler = unhandled,
+            ///  I2C1 global interrupt (combined with EXTI line 23)
+            I2C1: Handler = unhandled,
+            ///  I2C2/3/4 global interrupt
+            I2C2_I2C3_I2C4: Handler = unhandled,
+            ///  SPI1 global interrupt
+            SPI1: Handler = unhandled,
+            ///  SPI2/3 global interrupt
+            SPI2_SPI3: Handler = unhandled,
+            ///  USART1 global interrupt (combined with EXTI line 25)
+            USART1: Handler = unhandled,
+            ///  USART2 and LPUART2 global interrupt (combined with EXTI lines 26 and 35)
+            USART2_LPUART2: Handler = unhandled,
+            ///  USART3 and LPUART1 global interrupt (combined with EXTI lines 24 and 28)
+            USART3_LPUART1: Handler = unhandled,
+            ///  USART4 and LPUART3 global interrupt (combined with EXTI lines 20 and 34)
+            USART4_LPUART3: Handler = unhandled,
+            ///  AES and RNG global interrupts
+            AES_RNG: Handler = unhandled,
+        };
+
         pub const peripherals = struct {
             ///  TIM2 address block description
             pub const TIM2: *volatile types.peripherals.TIM2 = @ptrFromInt(0x40000000);
