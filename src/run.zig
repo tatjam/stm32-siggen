@@ -78,7 +78,7 @@ pub fn run() void {
         .MODE5 = @as(u2, 0x1), // General purpose output
     });
 
-    var i: i16 = 0;
+    var i: u32 = 0;
 
     while (true) {
         const val = periph.GPIOA.GPIOA_ODR.read().OD5;
@@ -92,8 +92,9 @@ pub fn run() void {
 
         std.log.info("Wow! {}", .{i});
         i += 1;
-        if (i > 10) {
-            std.debug.assert(false);
+
+        if (i >= 10) {
+            unreachable;
         }
     }
 }

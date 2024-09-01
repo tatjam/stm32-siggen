@@ -12,16 +12,14 @@ pub const std_options: std.Options = .{
 // Override panic so we can actually debug Zig errors
 // Obviously, this depends on serial not being borked. But that's pretty rare
 pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
-    _ = trace; // autofix
     _ = ret_addr; // autofix
+    _ = trace; // autofix
 
-    serial.write_byte(serial.serial_log_indicator);
-    for (msg) |b| {
-        serial.write_byte(b);
-    }
+    std.log.err("panic: {s}", .{msg});
+
     serial.write_byte(0);
     while (true) {
-        asm volatile ("bkpt");
+        @breakpoint();
     }
 }
 
