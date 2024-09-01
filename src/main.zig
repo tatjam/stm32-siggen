@@ -27,6 +27,8 @@ comptime {
 
 const run = @import("run.zig").run;
 
+// The callconv(.C) MAY be unnecesary, not sure...
+// (The function doesn't take arguments nor return them, so shouldn't matter...)
 export fn reset_handler() callconv(.C) void {
     const StartupLocations = struct {
         extern var _sbss: u8;

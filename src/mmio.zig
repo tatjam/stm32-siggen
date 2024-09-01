@@ -22,11 +22,11 @@ pub fn Mmio(comptime PackedT: type) type {
 
         pub const underlying_type = PackedT;
 
-        pub fn read(addr: *volatile Self) PackedT {
+        pub inline fn read(addr: *volatile Self) PackedT {
             return @bitCast(addr.raw);
         }
 
-        pub fn write(addr: *volatile Self, val: PackedT) void {
+        pub inline fn write(addr: *volatile Self, val: PackedT) void {
             comptime {
                 assert(@bitSizeOf(PackedT) == @bitSizeOf(IntT));
             }
@@ -37,7 +37,7 @@ pub fn Mmio(comptime PackedT: type) type {
             addr.raw = val;
         }
 
-        pub fn modify(addr: *volatile Self, fields: anytype) void {
+        pub inline fn modify(addr: *volatile Self, fields: anytype) void {
             var val = read(addr);
             inline for (@typeInfo(@TypeOf(fields)).@"struct".fields) |field| {
                 @field(val, field.name) = @bitCast(@field(fields, field.name));
@@ -45,7 +45,7 @@ pub fn Mmio(comptime PackedT: type) type {
             write(addr, val);
         }
 
-        pub fn toggle(addr: *volatile Self, fields: anytype) void {
+        pub inline fn toggle(addr: *volatile Self, fields: anytype) void {
             var val = read(addr);
             inline for (@typeInfo(@TypeOf(fields)).Struct.fields) |field| {
                 @field(val, field.name) = @field(val, field.name) ^ @field(fields, field.name);
