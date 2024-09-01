@@ -2,6 +2,8 @@ const std = @import("std");
 const stm32u083 = @import("stm32u083.zig");
 const periph = stm32u083.devices.STM32U083.peripherals;
 
+const serial = @import("serial.zig");
+
 fn setup_clock() void {
     const RCC = periph.RCC;
     // NUCLEO board must be adjusted to use MCO output of STLink. This involves
@@ -69,15 +71,14 @@ fn setup_clock() void {
 
 pub fn run() void {
     setup_clock();
+    serial.init_serial();
 
     // LED at PA 5
-    periph.RCC.RCC_IOPENR.modify(.{
-        .GPIOAEN = @as(u1, 0x01), // Enable
-    });
-
     periph.GPIOA.GPIOA_MODER.modify(.{
         .MODE5 = @as(u2, 0x1), // General purpose output
     });
+
+    var i: i16 = 0;
 
     while (true) {
         const val = periph.GPIOA.GPIOA_ODR.read().OD5;
@@ -87,6 +88,12 @@ pub fn run() void {
         });
         for (0..1000000) |a| {
             _ = a;
+        }
+
+        std.log.info("Wow! {}", .{i});
+        i += 1;
+        if (i > 10) {
+            std.debug.assert(false);
         }
     }
 }

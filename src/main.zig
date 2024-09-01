@@ -1,35 +1,40 @@
 const std = @import("std");
 const stm32u083 = @import("stm32u083.zig");
+const serial = @import("serial.zig");
 
 const periph = stm32u083.devices.STM32U083.peripherals;
 
-pub fn export_vector_table() void {}
-
-fn default_handler() callconv(.C) noreturn {
-    while (true) {}
-}
-
-extern var __stack: anyopaque;
-
-const vector_table: stm32u083.devices.STM32U083.VectorTable = .{
-    .initial_stack_pointer = &__stack,
-    .Reset = reset_handler,
+// Zig settings
+pub const std_options: std.Options = .{
+    .logFn = serial.serial_log,
 };
+
+// Override panic so we can actually debug Zig errors
+// Obviously, this depends on serial not being borked. But that's pretty rare
+pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize) noreturn {
+    _ = trace; // autofix
+    _ = ret_addr; // autofix
+
+    serial.write_byte(serial.serial_log_indicator);
+    for (msg) |b| {
+        serial.write_byte(b);
+    }
+    serial.write_byte(0);
+    while (true) {
+        asm volatile ("bkpt");
+    }
+}
 
 comptime {
     @export(&reset_handler, .{ .name = "_start" });
-    @export(&vector_table, .{
-        .name = "vector_table",
-        .section = ".isr_vector",
-        .linkage = .strong,
-    });
+    _ = @import("vector_table.zig");
 }
 
 const run = @import("run.zig").run;
 
 // The callconv(.C) MAY be unnecesary, not sure...
 // (The function doesn't take arguments nor return them, so shouldn't matter...)
-export fn reset_handler() callconv(.C) void {
+pub fn reset_handler() callconv(.C) void {
     const StartupLocations = struct {
         extern var _sbss: u8;
         extern var _ebss: u8;
