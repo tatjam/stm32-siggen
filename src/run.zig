@@ -1,8 +1,8 @@
 const std = @import("std");
-const stm32u083 = @import("stm32u083.zig");
+const stm32u083 = @import("hw/stm32u083.zig");
 const periph = stm32u083.devices.STM32U083.peripherals;
 
-const serial = @import("serial.zig");
+const serial = @import("driver/serial.zig");
 
 fn setup_clock() void {
     const RCC = periph.RCC;

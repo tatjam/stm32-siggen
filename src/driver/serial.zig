@@ -11,7 +11,7 @@
 // used instead of raw byte writing, but this is easier and we don't need high
 // throughput in the program.
 
-const stm32u083 = @import("stm32u083.zig");
+const stm32u083 = @import("../hw/stm32u083.zig");
 const periph = stm32u083.devices.STM32U083.peripherals;
 
 const std = @import("std");

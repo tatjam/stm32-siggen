@@ -1,6 +1,6 @@
 const std = @import("std");
-const stm32u083 = @import("stm32u083.zig");
-const serial = @import("serial.zig");
+const stm32u083 = @import("hw/stm32u083.zig");
+const serial = @import("driver/serial.zig");
 
 const periph = stm32u083.devices.STM32U083.peripherals;
 
@@ -24,6 +24,8 @@ pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize)
         std.log.err("{d: >3}: 0x{X:0>8}", .{ stk_idx, addr });
     }
 
+    // Disable interrupts
+
     while (true) {
         @breakpoint();
     }
@@ -31,7 +33,7 @@ pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize)
 
 comptime {
     @export(&reset_handler, .{ .name = "_start" });
-    _ = @import("vector_table.zig");
+    _ = @import("driver/vector_table.zig");
 }
 
 const run = @import("run.zig").run;
