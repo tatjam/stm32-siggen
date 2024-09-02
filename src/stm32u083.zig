@@ -17,7 +17,101 @@ pub const devices = struct {
             while (true) {}
         }
 
-		const IsrFunction = *const fn () callconv(.C) void;
+        const IsrFunction = *const fn () callconv(.C) void;
+        // Note that "core peripherals" are not included in this list, they are not handled
+        // by NVIC (those are negative, and are "hardwired" so to say, but may be controlled in SCB)
+        pub const InterruptIndex = enum(usize) {
+            ///  Window watchdog interrupt
+            WWDG = 0,
+            ///  PVD/PVM1/PVM2/PVM3 interrupt (combined with EXTI lines 16 and 19 and 20 and 21)
+            PVD_PVM,
+            ///  RTC and TAMP interrupts(combined EXTI lines 19 and 21)
+            RTC_TAMP,
+            ///  FLASH global interrupt
+            FLASH,
+            ///  RCC and CRS global interrupt
+            RCC_CRS,
+            ///  EXTI lines 0 and 1 interrupt
+            EXTI0_1,
+            ///  EXTI lines 2 and 3 interrupt
+            EXTI2_3,
+            ///  EXTI lines 4 to 15 interrupt
+            EXTI4_15,
+            ///  USB global interrupt (combined with EXTI line 33)
+            USB,
+            ///  DMA1 channel 1 interrupt
+            DMA1_CHannel1,
+            ///  DMA1 channel 2 and 3 interrupts
+            DMA1_Channel2_3,
+            ///  DMA1 channel 4, 5, 6, 7, DMAMUX, DMA2 channel 1, 2, 3, 4, 5 interrupts
+            DMA1_Channel4_5_6_7,
+            ///  ADC and COMP interrupts (ADC combined with EXTI lines 17 and 18)
+            ADC_COMP,
+            ///  TIM1 break, update, trigger and commutation interrupts
+            TIM1_BRK_UP_TRG_COM,
+            ///  TIM1 Capture Compare interrupt
+            TIM1_CC,
+            ///  TIM2 global interrupt
+            TIM2,
+            ///  TIM3 global interrupt
+            TIM3,
+            ///  TIM6, LPTIM1 and DAC global interrupt (combined with EXTI line 29)
+            TIM6_DAC_LPTIM1,
+            ///  TIM7 and LPTIM2 global interrupt (combined with EXTI line 30)
+            TIM7_LPTIM2,
+            ///  TIM15 and LPTIM3 global interrupt (combined with EXTI line 29)
+            TIM15_LPTIM3,
+            ///  TIM16 global interrupt
+            TIM16,
+            ///  TSC global interrupt
+            TSC,
+            ///  LCD global interrupt (combined with EXTI line 32)
+            LCD,
+            ///  I2C1 global interrupt (combined with EXTI line 23)
+            I2C1,
+            ///  I2C2/3/4 global interrupt
+            I2C2_I2C3_I2C4,
+            ///  SPI1 global interrupt
+            SPI1,
+            ///  SPI2/3 global interrupt
+            SPI2_SPI3,
+            ///  USART1 global interrupt (combined with EXTI line 25)
+            USART1,
+            ///  USART2 and LPUART2 global interrupt (combined with EXTI lines 26 and 35)
+            USART2_LPUART2,
+            ///  USART3 and LPUART1 global interrupt (combined with EXTI lines 24 and 28)
+            USART3_LPUART1,
+            ///  USART4 and LPUART3 global interrupt (combined with EXTI lines 20 and 34)
+            USART4_LPUART3,
+            ///  AES and RNG global interrupts
+            AES_RNG,
+        };
+
+        const core = @import("cortex_m.zig");
+		pub fn enable_interrupt(idx: InterruptIndex) void {
+			// Note that we just need to write a "1" in the right place. Access must be word-wide
+			core.NVIC.ISER = @as(u32, 1 << @intFromEnum(idx));
+		}
+
+		pub fn disable_interrupt(idx: InterruptIndex) void {
+			core.NVIC.ICER = @as(u32, 1 << @intFromEnum(idx));
+		}
+
+		pub fn get_interrupt_enabled(idx: InterruptIndex) bool {
+			return core.NVIC.ISER & @as(u32, 1 << @intFromEnum(idx)) != 0;
+		}
+
+		pub fn set_pending_interrupt(idx: InterruptIndex) void {
+			core.NVIC.ISPR = @as(u32, 1 << @intFromEnum(idx));
+		}
+
+		pub fn clear_pending_interrupt(idx: InterruptIndex) void {
+			core.NVIC.ICPR = @as(u32, 1 << @intFromEnum(idx));
+		}
+
+		pub fn is_interrupt_pending(idx: InterruptIndex) bool {
+			return core.NVIC.ISPR & @as(u32, 1 << @intFromEnum(idx)) != 0;
+		}
 
         pub const VectorTable = extern struct {
             const Handler = IsrFunction;

@@ -17,7 +17,13 @@ pub fn panic(msg: []const u8, trace: ?*std.builtin.StackTrace, ret_addr: ?usize)
 
     std.log.err("panic: {s}", .{msg});
 
-    serial.write_byte(0);
+    // Thx microzig
+    var stk_idx: usize = 0;
+    var iter = std.debug.StackIterator.init(@returnAddress(), null);
+    while (iter.next()) |addr| : (stk_idx += 1) {
+        std.log.err("{d: >3}: 0x{X:0>8}", .{ stk_idx, addr });
+    }
+
     while (true) {
         @breakpoint();
     }
