@@ -1,6 +1,7 @@
-// Sine wave generation using DAC
+// Sine wave (fairly coarse frequency, prioritizes harmonic purity) generation using DAC
 // NOTE: DMA1 channel 0 is reserved for this purpose
 // NOTE: TIM6 is reserved for this purpose
+// TODO: We may be bandwidth limited by the settling time, check on oscilloscope
 // (This is kind of future proofing for other devices which have more than one DAC)
 
 const std = @import("std");
@@ -53,11 +54,11 @@ fn generate_sine_data(comptime n: usize) [n]u16 {
 }
 
 // This is all generated at comptime
-pub const sine_8_data = generate_sine_data(8);
-pub const sine_16_data = generate_sine_data(16);
-pub const sine_32_data = generate_sine_data(32);
-pub const sine_64_data = generate_sine_data(64);
-pub const sine_128_data = generate_sine_data(128);
+pub const sine_8_data: [8]u16 = generate_sine_data(8);
+pub const sine_16_data: [16]u16 = generate_sine_data(16);
+pub const sine_32_data: [32]u16 = generate_sine_data(32);
+pub const sine_64_data: [64]u16 = generate_sine_data(64);
+pub const sine_128_data: [128]u16 = generate_sine_data(128);
 
 const dma_buffer: [128]u16 = undefined;
 
@@ -85,11 +86,29 @@ pub fn setup_dac_sine(f: u32) void {
         }
     };
 
-    std.log.info("Request f = {}Hz, dma_len = {}", .{ f, dma_len });
+    std.log.info("Request f = {}Hz, dma_len = {}...", .{ f, dma_len });
 
-    // Setup the triggering clock, to match frequency as best as possible
-    // Note that output frequency is clock frequency / dma_len!!
+    const samp_freq: u32 = f * dma_len;
+    assert(samp_freq < 1000000);
+    assert(samp_freq >= 1);
 
-    // Enable output buffer so we can drive "significant" loads
+    // if samp_freq < 733, the prescaler value would not fit in the 16 bit register, thus
+    // we further divide by two using the timer counter
 
+    // Because f is minimum 1Hz, and thus samp_freq is minimum greater than 1, we
+    // can simply use the prescaler in TIM6 to set the frequency (fairly coarse at higher freqs!)
+    // fsample = 48_000_000 / PRESCALER thus...
+
+    var prescaler: u32 = 48_000_000 / samp_freq;
+    var divider: u32 = 1;
+    while (prescaler > std.math.maxInt(u16)) {
+        prescaler /= 2;
+        divider *= 2;
+    }
+
+    std.log.info("prescaler = {}, divider = {}, yields f = {}Hz", .{
+        prescaler,
+        divider,
+        48_000_000 / prescaler / dma_len,
+    });
 }
