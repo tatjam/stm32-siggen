@@ -88,30 +88,36 @@ pub const devices = struct {
         };
 
         const core = @import("cortex_m.zig");
-		pub fn enable_interrupt(idx: InterruptIndex) void {
-			// Note that we just need to write a "1" in the right place. Access must be word-wide
-			core.NVIC.ISER = @as(u32, 1 << @intFromEnum(idx));
-		}
+        pub fn enable_interrupt(idx: InterruptIndex) void {
+            // Note that we just need to write a "1" in the right place. Access must be word-wide
+			const lshift: u5 = @intCast(@intFromEnum(idx));
+            core.NVIC.ISER = @as(u32, @as(u32, 1) << lshift);
+        }
 
-		pub fn disable_interrupt(idx: InterruptIndex) void {
-			core.NVIC.ICER = @as(u32, 1 << @intFromEnum(idx));
-		}
+        pub fn disable_interrupt(idx: InterruptIndex) void {
+			const lshift: u5 = @intCast(@intFromEnum(idx));
+            core.NVIC.ICER = @as(u32, @as(u32, 1) << lshift);
+        }
 
-		pub fn get_interrupt_enabled(idx: InterruptIndex) bool {
-			return core.NVIC.ISER & @as(u32, 1 << @intFromEnum(idx)) != 0;
-		}
+        pub fn get_interrupt_enabled(idx: InterruptIndex) bool {
+			const lshift: u5 = @intCast(@intFromEnum(idx));
+            return core.NVIC.ISER & @as(u32, @as(u32, 1) << lshift) != 0;
+        }
 
-		pub fn set_pending_interrupt(idx: InterruptIndex) void {
-			core.NVIC.ISPR = @as(u32, 1 << @intFromEnum(idx));
-		}
+        pub fn set_pending_interrupt(idx: InterruptIndex) void {
+			const lshift: u5 = @intCast(@intFromEnum(idx));
+            core.NVIC.ISPR = @as(u32, @as(u32, 1) << lshift);
+        }
 
-		pub fn clear_pending_interrupt(idx: InterruptIndex) void {
-			core.NVIC.ICPR = @as(u32, 1 << @intFromEnum(idx));
-		}
+        pub fn clear_pending_interrupt(idx: InterruptIndex) void {
+			const lshift: u5 = @intCast(@intFromEnum(idx));
+            core.NVIC.ICPR = @as(u32, @as(u32, 1) << lshift);
+        }
 
-		pub fn is_interrupt_pending(idx: InterruptIndex) bool {
-			return core.NVIC.ISPR & @as(u32, 1 << @intFromEnum(idx)) != 0;
-		}
+        pub fn is_interrupt_pending(idx: InterruptIndex) bool {
+			const lshift: u5 = @intCast(@intFromEnum(idx));
+            return core.NVIC.ISPR & @as(u32, @as(u32, 1) << lshift) != 0;
+        }
 
         pub const VectorTable = extern struct {
             const Handler = IsrFunction;

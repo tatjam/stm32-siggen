@@ -11,9 +11,9 @@
 // used instead of raw byte writing, but this is easier and we don't need high
 // throughput in the program.
 
-const stm32u083 = @import("../hw/stm32u083.zig");
-const periph = stm32u083.devices.STM32U083.peripherals;
-
+const stm32u083 = @import("hw/stm32u083.zig").devices.STM32U083;
+const periph = stm32u083.peripherals;
+const volatile_loop = @import("volatile_loop.zig").volatile_loop;
 const std = @import("std");
 
 const RCC = periph.RCC;
@@ -61,11 +61,15 @@ pub fn init_serial() void {
     // Setup USART_BRR for 9(599)bps
     USART.USART_BRR.write_raw(@as(u16, 599));
 
-    // Enable transmission and reception
+    // Enable transmission and reception, and interrupts
     USART.USART_CR1.modify(.{
         .UE = @as(u1, 1),
         .TE = @as(u1, 1),
+        .RE = @as(u1, 1),
+        .RXFNEIE = @as(u1, 1), // This is actually RXNEIE, but alternate 0 is used
     });
+
+    stm32u083.enable_interrupt(.USART2_LPUART2);
 
     std.log.info("Hello from NUCLEO!", .{});
 }
@@ -73,7 +77,9 @@ pub fn init_serial() void {
 pub fn write_byte(byte: u8) void {
     // Wait for write to be ready
     // NOTE: This is actually a read of TXE
-    while (USART.USART_ISR.read().TXFNF.raw == 0) {}
+    while (USART.USART_ISR.read().TXFNF.raw == 0) {
+        volatile_loop();
+    }
     // Actually write the data
     USART.USART_TDR.modify(.{
         .TDR = @as(u9, byte),
@@ -83,6 +89,14 @@ pub fn write_byte(byte: u8) void {
 pub const serial_log_indicator = 0x02; // STX
 
 var serial_log_buffer: [128]u8 = undefined;
+
+// We use a double buffered input buffer
+var proc_command_buffer: [32]u8 = undefined;
+var proc_buffer_size: u32 = 0;
+var command_buffer: [32]u8 = undefined;
+var command_ptr: u32 = 0;
+var command_overflow: u32 = 0;
+var has_buffer: bool = false;
 
 pub fn serial_log(
     comptime message_level: std.log.Level,
@@ -113,4 +127,42 @@ pub fn serial_log(
     write_byte(0x0);
 }
 
-pub fn interrupt_handler() callconv(.C) void {}
+pub fn interrupt_handler() callconv(.C) void {
+    if (USART.USART_ISR.read().RXFNE.raw == 1) {
+        // This is actually RXNE (we use variant 0)
+        // Reading RDR will clear this interrupt flag!
+
+        const byte_parity = USART.USART_RDR.read().RDR;
+        // We have parity disabled, so the MSB should always be zero and this is fine
+        const byte = @as(u8, @truncate(byte_parity));
+
+        command_buffer[command_ptr] = byte;
+        command_ptr += 1;
+        if (byte == 0 or command_ptr >= command_buffer.len) {
+            if (has_buffer) {
+                // Sadly messages came too fast, discard last received but notify
+                // (This prevents data races from corrupting a message as it's being read in the task!)
+                command_overflow += 1;
+                command_ptr = 0;
+            } else {
+                // End of command, queue buffer to be processed
+                @memcpy(proc_command_buffer[0..command_ptr], command_buffer[0..command_ptr]);
+                proc_buffer_size = command_ptr;
+                command_ptr = 0;
+                has_buffer = true;
+            }
+        }
+    } else {
+        unreachable;
+    }
+}
+
+pub fn task_receive() void {
+    if (has_buffer) {
+        const buffer = proc_command_buffer[0..proc_buffer_size];
+        // Process the buffer
+        std.log.info("RX: {s}", .{buffer});
+
+        has_buffer = false;
+    }
+}

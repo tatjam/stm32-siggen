@@ -2,7 +2,8 @@ const std = @import("std");
 const stm32u083 = @import("hw/stm32u083.zig");
 const periph = stm32u083.devices.STM32U083.peripherals;
 
-const serial = @import("driver/serial.zig");
+const serial = @import("serial.zig");
+const volatile_loop = @import("volatile_loop.zig").volatile_loop;
 
 fn setup_clock() void {
     const RCC = periph.RCC;
@@ -54,7 +55,9 @@ fn setup_clock() void {
     });
 
     // Wait for PLL lock
-    while (RCC.RCC_CR.read().PLLRDY.raw != 0x1) {}
+    while (RCC.RCC_CR.read().PLLRDY.raw != 0x1) {
+        volatile_loop();
+    }
 
     // Enable R output
     RCC.RCC_PLLCFGR.modify(.{
@@ -78,23 +81,7 @@ pub fn run() void {
         .MODE5 = @as(u2, 0x1), // General purpose output
     });
 
-    var i: u32 = 0;
-
     while (true) {
-        const val = periph.GPIOA.GPIOA_ODR.read().OD5;
-        const nval: u1 = if (val == 0) 1 else 0;
-        periph.GPIOA.GPIOA_ODR.modify(.{
-            .OD5 = nval,
-        });
-        for (0..1000000) |a| {
-            _ = a;
-        }
-
-        std.log.info("Wow! {}", .{i});
-        i += 1;
-
-        if (i >= 10) {
-            unreachable;
-        }
+        serial.task_receive();
     }
 }

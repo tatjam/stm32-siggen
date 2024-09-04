@@ -86,8 +86,6 @@ pub fn setup_dac_sine(f: u32) void {
         }
     };
 
-    std.log.info("Request f = {}Hz, dma_len = {}...", .{ f, dma_len });
-
     const samp_freq: u32 = f * dma_len;
     assert(samp_freq < 1000000);
     assert(samp_freq >= 1);
@@ -106,6 +104,18 @@ pub fn setup_dac_sine(f: u32) void {
         divider *= 2;
     }
 
+    assert(prescaler <= std.math.maxInt(u16));
+    assert(divider <= std.math.maxInt(u16));
+    assert(prescaler > 0);
+    assert(divider > 0);
+
+    // Not sure if the other arrangement is better? Should not matter much...
+    TIM.TIM6_PSC.write_raw(@as(u16, prescaler - 1));
+    // NOTE: The timer counts from 0 to TIM6_ARR, and then restarts. Thus a value of
+    // 0 results in no division (ie divider = 1). Thus the substraction of one.
+    TIM.TIM6_ARR.write_raw(@as(u16, divider - 1));
+
+    std.log.info("Request f = {}Hz, dma_len = {}...", .{ f, dma_len });
     std.log.info("prescaler = {}, divider = {}, yields f = {}Hz", .{
         prescaler,
         divider,
