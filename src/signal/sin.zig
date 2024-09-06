@@ -12,6 +12,8 @@ const DMA = stm32u083.peripherals.DMA1;
 const DMAMUX = stm32u083.peripherals.DMAMUX;
 const TIM = stm32u083.peripherals.TIM6;
 const DAC = stm32u083.peripherals.DAC;
+const GPIO = stm32u083.peripherals.GPIOA;
+const RCC = stm32u083.peripherals.RCC;
 
 // The DAC is limited to 1Msps, we have sinewaves of:
 // N Samples, max freq (kHz)
@@ -64,10 +66,23 @@ pub const sine_128_data: [128]u16 = generate_sine_data(128);
 
 var dma_buffer: [128]u16 = undefined;
 
+pub fn init() void {
+    // Enable peripherals we use
+    RCC.RCC_AHBENR.modify(.{
+        .DMA1EN = @as(u1, 1),
+    });
+    RCC.RCC_APBENR1.modify(.{
+        .TIM6EN = @as(u1, 1),
+        .DAC1EN = @as(u1, 1),
+    });
+}
+
 // Launches a sine generator given frequency in hertz that
 // best approximates this frequency on the output with
 // maximum quality
 pub fn start(f: u32) !void {
+    assert(stm32u083.peripherals.RCC.RCC_IOPENR.read().GPIOAEN.raw == 1);
+
     if (f > 125000 or f == 0) return error.InvalidFrequency;
     const dma_len: u32 = blk: {
         if (f <= 7812) {
@@ -99,8 +114,9 @@ pub fn start(f: u32) !void {
     // can simply use the prescaler in TIM6 to set the frequency (fairly coarse at higher freqs!)
     // fsample = 48_000_000 / PRESCALER thus...
 
-    var prescaler: u32 = 48_000_000 / samp_freq;
-    var divider: u32 = 1;
+    // division by two because divider is minimum 2;
+    var prescaler: u32 = 48_000_000 / samp_freq / 2;
+    var divider: u32 = 2;
     while (prescaler > std.math.maxInt(u16)) {
         prescaler /= 2;
         divider *= 2;
@@ -109,19 +125,24 @@ pub fn start(f: u32) !void {
     assert(prescaler <= std.math.maxInt(u16));
     assert(divider <= std.math.maxInt(u16));
     assert(prescaler > 0);
-    assert(divider > 0);
+    assert(divider >= 2);
 
     // Not sure if the other arrangement is better? Should not matter much...
     TIM.TIM6_PSC.write_raw(@as(u16, @truncate(prescaler - 1)));
-    // NOTE: The timer counts from 0 to TIM6_ARR, and then restarts. Thus a value of
-    // 0 results in no division (ie divider = 1). Thus the substraction of one.
+    // NOTE: The timer counts from 0 to TIM6_ARR, and then restarts. The value may not be 0!
+    // Otherwise, no update events are generated. This means that we divide minimum by 2.
     TIM.TIM6_ARR.write_raw(@as(u16, @truncate(divider - 1)));
+
+    // Make sure we generate an update to load registers (?)
+    TIM.TIM6_EGR.modify(.{
+        .UG = @as(u1, 1),
+    });
 
     std.log.info("Request f = {}Hz, dma_len = {}...", .{ f, dma_len });
     std.log.info("prescaler = {}, divider = {}, yields f = {}Hz", .{
         prescaler,
         divider,
-        48_000_000 / prescaler / dma_len,
+        48_000_000 / prescaler / divider / dma_len,
     });
 
     // The DAC upon external triggering will request a new sample from DMA, which will be
@@ -131,7 +152,13 @@ pub fn start(f: u32) !void {
     // Write first sample as 0 to prevent garbage output
     // (First output is not served by DMA!)
     DAC.DAC_DHR12R1.modify(.{
-        .DACC1DHR = @as(u12, 0),
+        .DACC1DHR = @as(u12, 2048),
+    });
+
+    // Set GPIOA PA4 pin to analog function mode
+    // NOTE: This is default
+    GPIO.GPIOA_MODER.modify(.{
+        .MODE4 = @as(u2, 0b11), // Analog mode
     });
 
     // Route DAC DMA requests to DMA1 channel 0
@@ -141,12 +168,13 @@ pub fn start(f: u32) !void {
         .DMAREQ_ID = @as(u7, 8), // DMA request 8 is hardwired to the DAC
     });
 
+    // Set up the generator to map
+
     // Setup DMA
     DMA.DMA_CCR1.modify(.{
         .MSIZE = @as(u2, 0b01), // Samples are 16 bit
         .PSIZE = @as(u2, 0b01), // Target is 16 bit TODO: CHECK
         .MINC = @as(u1, 1), // We increase memory
-        .PINC = @as(u1, 0), // But not peripheral
         .CIRC = @as(u1, 1), // Circular mode
         .DIR = @as(u1, 1), // Read from memory
     });
@@ -159,6 +187,8 @@ pub fn start(f: u32) !void {
         .PA = @intFromPtr(&DAC.DAC_DHR12R1.raw),
     });
 
+    std.log.info("{}, {}", .{ &dma_buffer[0], &DAC.DAC_DHR12R1.raw });
+
     DMA.DMA_CNDTR1.modify(.{
         .NDT = @as(u16, @truncate(dma_len)),
     });
@@ -166,6 +196,7 @@ pub fn start(f: u32) !void {
     // Make DAC use DMA, trigger from TIM6, and enable it
     DAC.DAC_CR.modify(.{
         .DMAEN1 = @as(u1, 1),
+        .TEN1 = @as(u1, 1), // use hardware trigger
         .TSEL1 = @as(u4, 5), // dac_ch1_trg5 = tim6_trgo
         .EN1 = @as(u1, 1),
     });
@@ -180,6 +211,11 @@ pub fn start(f: u32) !void {
         .CNT = @as(u16, 0),
     });
 
+    // And make sure it uses its update event as TRGO (which goes to DAC)
+    TIM.TIM6_CR2.modify(.{
+        .MMS = @as(u3, 0b010),
+    });
+
     // Launch timer, this starts the continuous generation
     TIM.TIM6_CR1.modify(.{
         .CEN = @as(u1, 1),
@@ -191,4 +227,11 @@ pub fn stop() void {
     TIM.TIM6_CR1.modify(.{
         .CEN = @as(u1, 0),
     });
+
+    // Disable also DMA so we can change values
+    DMA.DMA_CCR1.modify(.{
+        .EN = @as(u1, 0),
+    });
+
+    // DAC can stay enabled, it should be fine
 }

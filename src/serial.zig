@@ -184,6 +184,7 @@ fn task_command(buffer: []u8) !void {
             signal.sin.stop();
         } else {
             const as_number = try std.fmt.parseInt(u32, arg1, 0);
+            signal.sin.stop();
             try signal.sin.start(as_number);
         }
     } else {
