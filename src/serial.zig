@@ -16,8 +16,13 @@ const periph = stm32u083.peripherals;
 const volatile_loop = @import("volatile_loop.zig").volatile_loop;
 const std = @import("std");
 
+const signal = @import("signal.zig");
+
 const RCC = periph.RCC;
 const USART = periph.USART2;
+
+const ACK = 0x06;
+const NACK = 0x15;
 
 pub fn init_serial() void {
     // We setup Asynchronous mode, baud rate of
@@ -98,6 +103,11 @@ var command_ptr: u32 = 0;
 var command_overflow: u32 = 0;
 var has_buffer: bool = false;
 
+fn newline() void {
+    write_byte('\r');
+    write_byte('\n');
+}
+
 pub fn serial_log(
     comptime message_level: std.log.Level,
     comptime scope: @TypeOf(.enum_literal),
@@ -122,9 +132,7 @@ pub fn serial_log(
         write_byte(b);
     }
     // Message end indicator
-    write_byte('\n');
-    write_byte('\r');
-    write_byte(0x0);
+    newline();
 }
 
 pub fn interrupt_handler() callconv(.C) void {
@@ -135,21 +143,28 @@ pub fn interrupt_handler() callconv(.C) void {
         const byte_parity = USART.USART_RDR.read().RDR;
         // We have parity disabled, so the MSB should always be zero and this is fine
         const byte = @as(u8, @truncate(byte_parity));
-
-        command_buffer[command_ptr] = byte;
-        command_ptr += 1;
-        if (byte == 0 or command_ptr >= command_buffer.len) {
-            if (has_buffer) {
-                // Sadly messages came too fast, discard last received but notify
-                // (This prevents data races from corrupting a message as it's being read in the task!)
-                command_overflow += 1;
-                command_ptr = 0;
-            } else {
-                // End of command, queue buffer to be processed
-                @memcpy(proc_command_buffer[0..command_ptr], command_buffer[0..command_ptr]);
-                proc_buffer_size = command_ptr;
-                command_ptr = 0;
-                has_buffer = true;
+        if (byte == 0x08) {
+            // Backspace, which for wathever reason is not in Zig
+            if (command_ptr > 0) {
+                command_ptr -= 1;
+            }
+        } else {
+            command_buffer[command_ptr] = byte;
+            command_ptr += 1;
+            // Note that the 0 terminator IS included in the message
+            if (byte == '\n' or byte == '\r' or command_ptr >= command_buffer.len) {
+                if (has_buffer) {
+                    // Sadly messages came too fast, discard last received but notify
+                    // (This prevents data races from corrupting a message as it's being read in the task!)
+                    command_overflow += 1;
+                    command_ptr = 0;
+                } else {
+                    // End of command, queue buffer to be processed
+                    @memcpy(proc_command_buffer[0..command_ptr], command_buffer[0..command_ptr]);
+                    proc_buffer_size = command_ptr;
+                    command_ptr = 0;
+                    has_buffer = true;
+                }
             }
         }
     } else {
@@ -157,11 +172,42 @@ pub fn interrupt_handler() callconv(.C) void {
     }
 }
 
+var was_parsing_raw_data = false;
+
+// All commands are of the form [noun] [values...] so we can decompose them
+fn task_command(buffer: []u8) !void {
+    var tokens = std.mem.tokenizeAny(u8, buffer, " \r\n");
+    const cmd = tokens.next() orelse return error.InvalidSerial;
+    if (std.mem.eql(u8, cmd, "sine")) {
+        const arg1 = tokens.next() orelse return error.LackArguments;
+        if (std.mem.eql(u8, arg1, "dis")) {
+            signal.sin.stop();
+        } else {
+            const as_number = try std.fmt.parseInt(u32, arg1, 0);
+            try signal.sin.start(as_number);
+        }
+    } else {
+        return error.UnknownCommand;
+    }
+}
+
 pub fn task_receive() void {
     if (has_buffer) {
         const buffer = proc_command_buffer[0..proc_buffer_size];
         // Process the buffer
-        std.log.info("RX: {s}", .{buffer});
+        if (was_parsing_raw_data) {
+            // TODO
+        } else {
+            // Newline for comfortable terminal use
+            newline();
+            if (task_command(buffer)) {
+                write_byte(ACK);
+                newline();
+            } else |err| {
+                std.log.err("Invalid command, error: {s}", .{@errorName(err)});
+                write_byte(NACK);
+            }
+        }
 
         has_buffer = false;
     }

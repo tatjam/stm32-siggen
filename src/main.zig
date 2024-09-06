@@ -38,6 +38,14 @@ comptime {
 
 const run = @import("run.zig").run;
 
+pub fn hard_fault() callconv(.C) void {
+    std.debug.panic("Hard fault", .{});
+}
+
+pub fn nmi() callconv(.C) void {
+    std.debug.panic("NMI", .{});
+}
+
 // The callconv(.C) MAY be unnecesary, not sure...
 // (The function doesn't take arguments nor return them, so shouldn't matter...)
 pub fn reset_handler() callconv(.C) void {
