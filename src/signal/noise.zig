@@ -8,9 +8,7 @@ const DAC = stm32u083.peripherals.DAC;
 const GPIO = stm32u083.peripherals.GPIOA;
 const RCC = stm32u083.peripherals.RCC;
 
-pub fn start() !void {
-    // Write first sample as 0 to prevent garbage output
-    // (First output is not served by DMA!)
+pub fn start(rate: u32) !void {
     DAC.DAC_DHR12R1.modify(.{
         .DACC1DHR = @as(u12, 2048),
     });
@@ -28,6 +26,7 @@ pub fn start() !void {
         .TEN1 = @as(u1, 1), // use hardware trigger
         .TSEL1 = @as(u4, 5), // dac_ch1_trg5 = tim6_trgo
         .WAVE1 = @as(u2, 0b01),
+        .MAMP1 = @as(u4, 0b1011), // maximum amplitude?
         .EN1 = @as(u1, 1),
     });
 
@@ -38,8 +37,11 @@ pub fn start() !void {
 
     // Make timer generate 1Msps for widest bandwidth possible
     // Remember than TIM6 is clocked at 48MHz, thus to get 1Msps
-    // we divide by 48
-    TIM.TIM6_PSC.write_raw(@as(u16, 48));
+    // we divide by minimum 48
+    if (rate < 48) {
+        return error.InvalidNoiseRate;
+    }
+    TIM.TIM6_PSC.write_raw(@as(u16, @truncate(rate)));
     TIM.TIM6_ARR.write_raw(@as(u16, 1));
 
     // And make sure it uses its update event as TRGO (which goes to DAC)

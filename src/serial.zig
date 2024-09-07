@@ -188,10 +188,15 @@ fn task_command(buffer: []u8) !void {
         }
     } else if (std.mem.eql(u8, cmd, "noise")) {
         const arg1 = tokens.next();
-        if (arg1 != null and std.mem.eql(u8, arg1.?, "dis")) {
-            signal.noise.stop();
+        if (arg1) |a1| {
+            if (std.mem.eql(u8, a1, "dis")) {
+                signal.noise.stop();
+            } else {
+                const as_number = try std.fmt.parseInt(u32, a1, 0);
+                try signal.launch_noise(as_number);
+            }
         } else {
-            try signal.launch_noise();
+            try signal.launch_noise(48);
         }
     } else {
         return error.UnknownCommand;

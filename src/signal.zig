@@ -17,10 +17,10 @@ pub fn launch_sin(f: u32) !void {
     try sin.start(f);
 }
 
-pub fn launch_noise() !void {
+pub fn launch_noise(rate: u32) !void {
     sin.stop();
     noise.stop();
-    try noise.start();
+    try noise.start(rate);
 }
 
 pub fn init() void {

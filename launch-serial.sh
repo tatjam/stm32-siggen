@@ -1,1 +1,1 @@
-tio -e -b 9600 /dev/ttyACM0
+tio -m INLCR -e -b 9600 /dev/ttyACM0
