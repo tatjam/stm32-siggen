@@ -2,8 +2,6 @@
 // NOTE: DMA1 channel 0 (index 1 in register names) is reserved for this purpose
 // NOTE: DMAMUX channel 0 is thus also reserved for this purpose
 // NOTE: TIM6 is reserved for this purpose
-// TODO: We may be bandwidth limited by the settling time, check on oscilloscope
-// (This is kind of future proofing for other devices which have more than one DAC)
 const std = @import("std");
 const assert = std.debug.assert;
 
@@ -65,17 +63,6 @@ pub const sine_64_data: [64]u16 = generate_sine_data(64);
 pub const sine_128_data: [128]u16 = generate_sine_data(128);
 
 var dma_buffer: [128]u16 = undefined;
-
-pub fn init() void {
-    // Enable peripherals we use
-    RCC.RCC_AHBENR.modify(.{
-        .DMA1EN = @as(u1, 1),
-    });
-    RCC.RCC_APBENR1.modify(.{
-        .TIM6EN = @as(u1, 1),
-        .DAC1EN = @as(u1, 1),
-    });
-}
 
 // Launches a sine generator given frequency in hertz that
 // best approximates this frequency on the output with

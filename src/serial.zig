@@ -178,14 +178,20 @@ var was_parsing_raw_data = false;
 fn task_command(buffer: []u8) !void {
     var tokens = std.mem.tokenizeAny(u8, buffer, " \r\n");
     const cmd = tokens.next() orelse return error.InvalidSerial;
-    if (std.mem.eql(u8, cmd, "sine")) {
+    if (std.mem.eql(u8, cmd, "sin")) {
         const arg1 = tokens.next() orelse return error.LackArguments;
         if (std.mem.eql(u8, arg1, "dis")) {
             signal.sin.stop();
         } else {
             const as_number = try std.fmt.parseInt(u32, arg1, 0);
-            signal.sin.stop();
-            try signal.sin.start(as_number);
+            try signal.launch_sin(as_number);
+        }
+    } else if (std.mem.eql(u8, cmd, "noise")) {
+        const arg1 = tokens.next();
+        if (arg1 != null and std.mem.eql(u8, arg1.?, "dis")) {
+            signal.noise.stop();
+        } else {
+            try signal.launch_noise();
         }
     } else {
         return error.UnknownCommand;
