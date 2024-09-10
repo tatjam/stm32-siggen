@@ -210,9 +210,9 @@ fn task_command(buffer: []u8) !void {
         const arg2 = tokens.next() orelse return error.LackArguments;
         const arg1i = try std.fmt.parseInt(u8, arg1, 0);
         const arg2i = try std.fmt.parseInt(u32, arg2, 0);
-        if (arg1i < 2) return error.InvalidArgument;
+        if (arg1i >= 2) return error.InvalidArgument;
         pwm_settings[arg1i].freq = arg2i;
-        signal.launch_pwm(pwm_settings);
+        try signal.launch_pwm(pwm_settings);
     } else if (std.mem.eql(u8, cmd, "pwmr")) {
         // pwmc [channel = 0 / 1] [subchannel = 0 / 1] [start in 0..100] [end in 0..100] [mode = 0 / 1? def 0]
         const arg1 = tokens.next() orelse return error.LackArguments;
@@ -226,27 +226,27 @@ fn task_command(buffer: []u8) !void {
         const arg3i = try std.fmt.parseInt(u8, arg3, 0);
         const arg4i = try std.fmt.parseInt(u8, arg4, 0);
 
-        if (arg1i < 2) return error.InvalidArgument;
-        if (arg2i < 2) return error.InvalidArgument;
-        if (arg3i <= 100) return error.InvalidArgument;
-        if (arg4i <= 100) return error.InvalidArgument;
+        if (arg1i >= 2) return error.InvalidArgument;
+        if (arg2i >= 2) return error.InvalidArgument;
+        if (arg3i > 100) return error.InvalidArgument;
+        if (arg4i > 100) return error.InvalidArgument;
 
         if (arg2i == 0) {
             pwm_settings[arg1i].start0 = arg3i;
             pwm_settings[arg1i].end0 = arg4i;
             if (arg5) |arg5v| {
                 assert(arg5v.len > 0);
-                pwm_settings[arg1i].mode0 = arg5v[0] == '1';
+                pwm_settings[arg1i].mode0 = try std.fmt.parseInt(u8, arg5v, 0) == 1;
             }
         } else {
             pwm_settings[arg1i].start1 = arg3i;
             pwm_settings[arg1i].end1 = arg4i;
             if (arg5) |arg5v| {
                 assert(arg5v.len > 0);
-                pwm_settings[arg1i].mode0 = arg5v[0] == '1';
+                pwm_settings[arg1i].mode1 = try std.fmt.parseInt(u8, arg5v, 0) == 1;
             }
         }
-        signal.launch_pwm(pwm_settings);
+        try signal.launch_pwm(pwm_settings);
     } else {
         return error.UnknownCommand;
     }

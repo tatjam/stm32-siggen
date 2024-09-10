@@ -11,6 +11,7 @@ pub const pwm = @import("signal/pwm.zig");
 
 const RCC = stm32u083.peripherals.RCC;
 const GPIOA = stm32u083.peripherals.GPIOA;
+const GPIOB = stm32u083.peripherals.GPIOB;
 
 pub fn launch_sin(f: u32) !void {
     // Noise and sin are incompatible
@@ -27,11 +28,15 @@ pub fn launch_noise(rate: u32) !void {
 
 pub fn launch_pwm(settings: [2]pwm.TimerSettings) !void {
     pwm.stop();
-    pwm.start(settings);
+    try pwm.start(settings);
 }
 
 pub fn init() void {
     // Enable peripherals we use
+    RCC.RCC_IOPENR.modify(.{
+        .GPIOBEN = @as(u1, 1), // Enable
+    });
+
     RCC.RCC_AHBENR.modify(.{
         .DMA1EN = @as(u1, 1),
     });
@@ -39,8 +44,9 @@ pub fn init() void {
         .TIM6EN = @as(u1, 1),
         .DAC1EN = @as(u1, 1),
     });
-    RCC.RCC_APBENR2.modify(.{
-        .TIM1EN = @as(u1, 1),
+    RCC.RCC_APBENR1.modify(.{
+        .TIM2EN = @as(u1, 1),
+        .TIM3EN = @as(u1, 1),
     });
 
     // Setup TIM2 and TIM3 outputs
@@ -49,23 +55,33 @@ pub fn init() void {
 
     GPIOA.GPIOA_MODER.modify(.{
         .MODE0 = @as(u2, 0b10), // Special purpose mode
-        .MODE1 = @as(u2, 0b10), // Special purpose mode
-        .MODE6 = @as(u2, 0b10), // Special purpose mode
-        .MODE7 = @as(u2, 0b10), // Special purpose mode
+    });
+    GPIOB.GPIOB_MODER.modify(.{
+        .MODE0 = @as(u2, 0b10), // Special purpose mode
+        .MODE4 = @as(u2, 0b10), // Special purpose mode
+        .MODE10 = @as(u2, 0b10), // Special purpose mode
     });
 
     GPIOA.GPIOA_AFRL.modify(.{
         .AFSEL0 = @as(u4, 1), // TIM2_CH1
-        .AFSEL1 = @as(u4, 1), // TIM2_CH2
-        .AFSEL6 = @as(u4, 2), // TIM3_CH1
-        .AFSEL7 = @as(u4, 2), // TIM3_CH2
+    });
+
+    GPIOB.GPIOB_AFRL.modify(.{
+        .AFSEL0 = @as(u4, 2), // TIM3_CH3
+        .AFSEL4 = @as(u4, 2), // TIM3_CH1
+    });
+
+    GPIOB.GPIOB_AFRH.modify(.{
+        .AFSEL10 = @as(u4, 1), // TIM2_CH3
     });
 
     // Speed
     GPIOA.GPIOA_OSPEEDR.modify(.{
         .OSPEED0 = @as(u2, 0b11),
-        .OSPEED1 = @as(u2, 0b11),
-        .OSPEED6 = @as(u2, 0b11),
-        .OSPEED7 = @as(u2, 0b11),
+    });
+    GPIOB.GPIOB_OSPEEDR.modify(.{
+        .OSPEED0 = @as(u2, 0b11),
+        .OSPEED4 = @as(u2, 0b11),
+        .OSPEED10 = @as(u2, 0b11),
     });
 }

@@ -1,7 +1,8 @@
 // General square wave generation using timers. We allow 2 different frequencies
 // each of which can have up to 2 channels
 // NOTE: TIM2 and TIM3 are reserved for this purpose
-// NOTE: Pins PA0, PA1, PA6, PA7 are reserved for this purpose
+// NOTE: Pins PA0, PB10, PB4, PB0 are reserved for this purpose
+// NOTE: These correspond to NUCLEO's A0, PWM/D6, PWM/D5, A3 respectively
 //
 // To achieve maximum duty cycle / phase precision, we divide the clock as little as
 // possible, but in such a way that the frequency is achievable within the 16 bit
@@ -50,6 +51,7 @@ pub fn all_disabled() [2]TimerSettings {
     var out: [2]TimerSettings = undefined;
     out[0] = disabled();
     out[1] = disabled();
+    return out;
 }
 
 fn calc_divider_and_counter(freq: u32) struct { presc: u16, cnt: u16 } {
@@ -69,12 +71,12 @@ fn calc_divider_and_counter(freq: u32) struct { presc: u16, cnt: u16 } {
 
     const acc = 24_000_000 / (presc + 1);
 
-    std.log.info("presc = {}, cnt = {} yield freq = {}Hz with accuracy = {}Hz ({}/255}", .{
+    std.log.info("presc = {}, cnt = {} yield freq = {}Hz with accuracy = {}Hz ({}%)", .{
         presc,
         cnt,
         24_000_000 / (presc + 1) / cnt,
         acc,
-        255 * acc / 24_000_000 / (presc + 1) / cnt,
+        100 * acc / 24_000_000 / (presc + 1) / cnt,
     });
 
     return .{ .presc = @intCast(presc), .cnt = @intCast(cnt) };
@@ -84,8 +86,8 @@ fn start_timer_tim2(settings: TimerSettings) !void {
     const TIM = stm32u083.peripherals.TIM2;
     const pre = calc_divider_and_counter(settings.freq);
     // Set frequency
-    TIM.TIM2_ARR.write_raw(pre.presc);
-    TIM.TIM2_ARR.write_raw(@truncate(pre.cnt));
+    TIM.TIM2_PSC.write_raw(pre.presc);
+    TIM.TIM2_ARR.write_raw(@intCast(pre.cnt));
     // Set assymetric PWM mode
 
     // We start with setting up / down counting
@@ -93,16 +95,18 @@ fn start_timer_tim2(settings: TimerSettings) !void {
         .CMS = @as(u2, 0b11),
     });
 
-    // We use
+    // We use OC1 and OC3 on both timers
     // (We manually write because this is an alternate register)
     if (settings.mode0) {
         TIM.TIM2_CCMR1.raw |= 0b0000000_0_0000000_1_0_000_0_0_00_0_111_0_0_00;
     } else {
+        TIM.TIM2_CCMR1.raw &= ~@as(u32, 0b0000000_0_0000000_0_0_000_0_0_00_0_001_0_0_00);
         TIM.TIM2_CCMR1.raw |= 0b0000000_0_0000000_1_0_000_0_0_00_0_110_0_0_00;
     }
     if (settings.mode1) {
         TIM.TIM2_CCMR2.raw |= 0b0000000_0_0000000_1_0_000_0_0_00_0_111_0_0_00;
     } else {
+        TIM.TIM2_CCMR2.raw &= ~@as(u32, 0b0000000_0_0000000_0_0_000_0_0_00_0_001_0_0_00);
         TIM.TIM2_CCMR2.raw |= 0b0000000_0_0000000_1_0_000_0_0_00_0_110_0_0_00;
     }
     // Set triggers for start / stop, converting from percent
@@ -110,11 +114,12 @@ fn start_timer_tim2(settings: TimerSettings) !void {
     const start1u32: u32 = @intCast(settings.start1);
     const end0u32: u32 = @intCast(settings.end0);
     const end1u32: u32 = @intCast(settings.end1);
-    const start0 = (start0u32 * 100) / pre.cnt;
-    const start1 = (start1u32 * 100) / pre.cnt;
-    const end0 = (end0u32 * 100) / pre.cnt;
-    const end1 = (end1u32 * 100) / pre.cnt;
-    std.log.info("start0 = {} end0 = {} start1 = {} end1 = {}", .{ start0, start1, end0, end1 });
+    const start0 = (start0u32 * pre.cnt) / 100;
+    const start1 = (start1u32 * pre.cnt) / 100;
+    const end0 = (end0u32 * pre.cnt) / 100;
+    const end1 = (end1u32 * pre.cnt) / 100;
+    std.log.info("start0 = {} end0 = {} start1 = {} end1 = {}", .{ settings.start0, settings.end0, settings.start1, settings.end1 });
+    std.log.info("start0 = {} end0 = {} start1 = {} end1 = {}", .{ start0, end0, start1, end1 });
     TIM.TIM2_CCR1.raw = @as(u16, @truncate(start0));
     TIM.TIM2_CCR2.raw = @as(u16, @truncate(end0));
     TIM.TIM2_CCR3.raw = @as(u16, @truncate(start1));
@@ -123,12 +128,22 @@ fn start_timer_tim2(settings: TimerSettings) !void {
     // Start from 0
     TIM.TIM2_CNT.write_raw(0);
 
+    // Use channels as outputs
+    TIM.TIM2_CCER.modify(.{
+        .CC1E = @as(u1, 1),
+        .CC3E = @as(u1, 1),
+    });
+
     // Enable the channels
     if (!(settings.start0 == 100 and settings.end0 == 0)) {
         TIM.TIM2_CCMR1.raw |= 0b0000000_0_0000000_0_0_000_0_0_00_1_000_0_0_00;
+    } else {
+        TIM.TIM2_CCMR1.raw &= ~@as(u32, 0b0000000_0_0000000_0_0_000_0_0_00_1_000_0_0_00);
     }
     if (!(settings.start1 == 100 and settings.end1 == 0)) {
         TIM.TIM2_CCMR2.raw |= 0b0000000_0_0000000_0_0_000_0_0_00_1_000_0_0_00;
+    } else {
+        TIM.TIM2_CCMR1.raw &= ~@as(u32, 0b0000000_0_0000000_0_0_000_0_0_00_1_000_0_0_00);
     }
 
     // Launch the timer
@@ -153,7 +168,7 @@ pub fn start(settings: [2]TimerSettings) !void {
 }
 
 pub fn build_settings(freq: u32, phase: u8, duty: u8) TimerSettings {
-    var out: TimerSettings = undefined;
+    const out: TimerSettings = undefined;
     _ = freq; // autofix
     _ = phase; // autofix
     _ = duty; // autofix
@@ -167,5 +182,9 @@ pub fn stop() void {
     });
     stm32u083.peripherals.TIM3.TIM3_CR1.modify(.{
         .CEN = @as(u1, 0),
+    });
+    stm32u083.peripherals.TIM2.TIM2_CCER.modify(.{
+        .CC1E = @as(u1, 0),
+        .CC3E = @as(u1, 0),
     });
 }

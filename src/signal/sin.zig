@@ -2,7 +2,7 @@
 // NOTE: DMA1 channel 0 (index 1 in register names) is reserved for this purpose
 // NOTE: DMAMUX channel 0 is thus also reserved for this purpose
 // NOTE: TIM6 is reserved for this purpose
-// NOTE: Pin PA4 is reserved for this purpose
+// NOTE: Pin PA4 is reserved for this purpose (A2 NUCLEO pin name)
 const std = @import("std");
 const assert = std.debug.assert;
 
