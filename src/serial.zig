@@ -3,6 +3,7 @@
 // NUCLEO board doesn't have a USB port connected to the MCU!
 // Of course, using the STLink as a serial device is not optimal, but we don't
 // move big ammounts of data anyway...
+// NOTE: Pins PA2, PA3 are used for this purpose
 
 // By default on the NUCLEO board USART2 (PA2/PA3) is used as VCP (Virtual COM port),
 // so we use it just for this purpose :)
@@ -15,6 +16,7 @@ const stm32u083 = @import("hw/stm32u083.zig").devices.STM32U083;
 const periph = stm32u083.peripherals;
 const volatile_loop = @import("volatile_loop.zig").volatile_loop;
 const std = @import("std");
+const assert = std.debug.assert;
 
 const signal = @import("signal.zig");
 
@@ -174,11 +176,14 @@ pub fn interrupt_handler() callconv(.C) void {
 
 var was_parsing_raw_data = false;
 
+var pwm_settings: [2]signal.pwm.TimerSettings = signal.pwm.all_disabled();
+
 // All commands are of the form [noun] [values...] so we can decompose them
 fn task_command(buffer: []u8) !void {
     var tokens = std.mem.tokenizeAny(u8, buffer, " \r\n");
     const cmd = tokens.next() orelse return error.InvalidSerial;
     if (std.mem.eql(u8, cmd, "sin")) {
+        // sin [dis/freq]
         const arg1 = tokens.next() orelse return error.LackArguments;
         if (std.mem.eql(u8, arg1, "dis")) {
             signal.sin.stop();
@@ -187,6 +192,7 @@ fn task_command(buffer: []u8) !void {
             try signal.launch_sin(as_number);
         }
     } else if (std.mem.eql(u8, cmd, "noise")) {
+        // noise [rate?]
         const arg1 = tokens.next();
         if (arg1) |a1| {
             if (std.mem.eql(u8, a1, "dis")) {
@@ -198,6 +204,49 @@ fn task_command(buffer: []u8) !void {
         } else {
             try signal.launch_noise(48);
         }
+    } else if (std.mem.eql(u8, cmd, "pwmf")) {
+        // pwmf [channel = 0 / 1] [freq]
+        const arg1 = tokens.next() orelse return error.LackArguments;
+        const arg2 = tokens.next() orelse return error.LackArguments;
+        const arg1i = try std.fmt.parseInt(u8, arg1, 0);
+        const arg2i = try std.fmt.parseInt(u32, arg2, 0);
+        if (arg1i < 2) return error.InvalidArgument;
+        pwm_settings[arg1i].freq = arg2i;
+        signal.launch_pwm(pwm_settings);
+    } else if (std.mem.eql(u8, cmd, "pwmr")) {
+        // pwmc [channel = 0 / 1] [subchannel = 0 / 1] [start in 0..100] [end in 0..100] [mode = 0 / 1? def 0]
+        const arg1 = tokens.next() orelse return error.LackArguments;
+        const arg2 = tokens.next() orelse return error.LackArguments;
+        const arg3 = tokens.next() orelse return error.LackArguments;
+        const arg4 = tokens.next() orelse return error.LackArguments;
+        const arg5 = tokens.next();
+
+        const arg1i = try std.fmt.parseInt(u8, arg1, 0);
+        const arg2i = try std.fmt.parseInt(u8, arg2, 0);
+        const arg3i = try std.fmt.parseInt(u8, arg3, 0);
+        const arg4i = try std.fmt.parseInt(u8, arg4, 0);
+
+        if (arg1i < 2) return error.InvalidArgument;
+        if (arg2i < 2) return error.InvalidArgument;
+        if (arg3i <= 100) return error.InvalidArgument;
+        if (arg4i <= 100) return error.InvalidArgument;
+
+        if (arg2i == 0) {
+            pwm_settings[arg1i].start0 = arg3i;
+            pwm_settings[arg1i].end0 = arg4i;
+            if (arg5) |arg5v| {
+                assert(arg5v.len > 0);
+                pwm_settings[arg1i].mode0 = arg5v[0] == '1';
+            }
+        } else {
+            pwm_settings[arg1i].start1 = arg3i;
+            pwm_settings[arg1i].end1 = arg4i;
+            if (arg5) |arg5v| {
+                assert(arg5v.len > 0);
+                pwm_settings[arg1i].mode0 = arg5v[0] == '1';
+            }
+        }
+        signal.launch_pwm(pwm_settings);
     } else {
         return error.UnknownCommand;
     }

@@ -1,6 +1,7 @@
 // Noise generator using the dedicated DAC mode
 // NOTE: DMA1 channel 0 (index 1 in register names) is reserved for this purpose
 // NOTE: TIM6 is reserved for this purpose
+// NOTE: Pin PA4 is reserved for this purpose
 
 const stm32u083 = @import("../hw/stm32u083.zig").devices.STM32U083;
 const TIM = stm32u083.peripherals.TIM6;

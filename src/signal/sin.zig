@@ -2,6 +2,7 @@
 // NOTE: DMA1 channel 0 (index 1 in register names) is reserved for this purpose
 // NOTE: DMAMUX channel 0 is thus also reserved for this purpose
 // NOTE: TIM6 is reserved for this purpose
+// NOTE: Pin PA4 is reserved for this purpose
 const std = @import("std");
 const assert = std.debug.assert;
 
@@ -185,6 +186,7 @@ pub fn start(f: u32) !void {
         .DMAEN1 = @as(u1, 1),
         .TEN1 = @as(u1, 1), // use hardware trigger
         .TSEL1 = @as(u4, 5), // dac_ch1_trg5 = tim6_trgo
+        .WAVE1 = @as(u2, 0b00),
         .EN1 = @as(u1, 1),
     });
 
