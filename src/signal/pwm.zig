@@ -89,9 +89,15 @@ fn start_timer_tim2(settings: TimerSettings) !void {
     TIM.TIM2_PSC.write_raw(pre.presc);
     TIM.TIM2_ARR.write_raw(@intCast(pre.cnt));
     // Set assymetric PWM mode
+    TIM.TIM2_CCMR1.write_raw(0);
+    TIM.TIM2_CCMR2.write_raw(0);
 
+    // It's apparently needed to enable preloading
+    TIM.TIM2_CCMR1.raw |= 0b0000000_0_0000000_0_0_000_1_0_00_0_000_1_0_00;
+    TIM.TIM2_CCMR2.raw |= 0b0000000_0_0000000_0_0_000_1_0_00_0_000_1_0_00;
     // We start with setting up / down counting
     TIM.TIM2_CR1.modify(.{
+        .ARPE = @as(u1, 1),
         .CMS = @as(u2, 0b11),
     });
 
@@ -100,15 +106,18 @@ fn start_timer_tim2(settings: TimerSettings) !void {
     if (settings.mode0) {
         TIM.TIM2_CCMR1.raw |= 0b0000000_0_0000000_1_0_000_0_0_00_0_111_0_0_00;
     } else {
-        TIM.TIM2_CCMR1.raw &= ~@as(u32, 0b0000000_0_0000000_0_0_000_0_0_00_0_001_0_0_00);
         TIM.TIM2_CCMR1.raw |= 0b0000000_0_0000000_1_0_000_0_0_00_0_110_0_0_00;
     }
     if (settings.mode1) {
         TIM.TIM2_CCMR2.raw |= 0b0000000_0_0000000_1_0_000_0_0_00_0_111_0_0_00;
     } else {
-        TIM.TIM2_CCMR2.raw &= ~@as(u32, 0b0000000_0_0000000_0_0_000_0_0_00_0_001_0_0_00);
         TIM.TIM2_CCMR2.raw |= 0b0000000_0_0000000_1_0_000_0_0_00_0_110_0_0_00;
     }
+
+    // TODO: try to set channels 2 and 4 to a non output mode (CCxS)
+    TIM.TIM2_CCMR1.raw |= 0b0000000_1_0000000_0_0_110_0_0_00_0_000_0_0_00;
+    TIM.TIM2_CCMR2.raw |= 0b0000000_1_0000000_0_0_110_0_0_00_0_000_0_0_00;
+
     // Set triggers for start / stop, converting from percent
     const start0u32: u32 = @intCast(settings.start0);
     const start1u32: u32 = @intCast(settings.start1);
@@ -128,23 +137,16 @@ fn start_timer_tim2(settings: TimerSettings) !void {
     // Start from 0
     TIM.TIM2_CNT.write_raw(0);
 
+    // trigger an update of registers
+    TIM.TIM2_EGR.modify(.{
+        .UG = @as(u1, 1),
+    });
+
     // Use channels as outputs
     TIM.TIM2_CCER.modify(.{
         .CC1E = @as(u1, 1),
         .CC3E = @as(u1, 1),
     });
-
-    // Enable the channels
-    if (!(settings.start0 == 100 and settings.end0 == 0)) {
-        TIM.TIM2_CCMR1.raw |= 0b0000000_0_0000000_0_0_000_0_0_00_1_000_0_0_00;
-    } else {
-        TIM.TIM2_CCMR1.raw &= ~@as(u32, 0b0000000_0_0000000_0_0_000_0_0_00_1_000_0_0_00);
-    }
-    if (!(settings.start1 == 100 and settings.end1 == 0)) {
-        TIM.TIM2_CCMR2.raw |= 0b0000000_0_0000000_0_0_000_0_0_00_1_000_0_0_00;
-    } else {
-        TIM.TIM2_CCMR1.raw &= ~@as(u32, 0b0000000_0_0000000_0_0_000_0_0_00_1_000_0_0_00);
-    }
 
     // Launch the timer
     TIM.TIM2_CR1.modify(.{
